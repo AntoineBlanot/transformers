@@ -17,10 +17,11 @@ A subclass of `Trainer` specific to Question-Answering tasks
 """
 import math
 import time
+import inspect
 
 from transformers import Trainer, is_torch_tpu_available
 from transformers.trainer_utils import PredictionOutput, speed_metrics
-
+from peft import PeftModel
 
 if is_torch_tpu_available(check_device=False):
     import torch_xla.core.xla_model as xm
@@ -32,6 +33,17 @@ class QuestionAnsweringTrainer(Trainer):
         super().__init__(*args, **kwargs)
         self.eval_examples = eval_examples
         self.post_process_function = post_process_function
+
+    def _set_signature_columns_if_needed(self):
+        if self._signature_columns is None:
+            # Inspect model forward signature to keep only the arguments it accepts.
+            if isinstance(self.model, PeftModel):
+                signature = inspect.signature(self.model.get_base_model().forward)
+            else:
+                signature = inspect.signature(self.model.forward)
+            self._signature_columns = list(signature.parameters.keys())
+            # Labels may be named label or label_ids, the default data collator handles that.
+            self._signature_columns += list(set(["label", "label_ids"] + self.label_names))
 
     def evaluate(self, eval_dataset=None, eval_examples=None, ignore_keys=None, metric_key_prefix: str = "eval"):
         eval_dataset = self.eval_dataset if eval_dataset is None else eval_dataset
