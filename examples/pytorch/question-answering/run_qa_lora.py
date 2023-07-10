@@ -29,6 +29,7 @@ import evaluate
 from datasets import load_dataset
 from trainer_qa import QuestionAnsweringTrainer
 from utils_qa import postprocess_qa_predictions
+from peft import LoraConfig, get_peft_model
 
 import transformers
 from transformers import (
@@ -331,20 +332,14 @@ def main():
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
-    import torch
-    from transformers import BitsAndBytesConfig
-    from peft import LoraConfig, get_peft_model, prepare_model_for_int8_training
     model = AutoModelForQuestionAnswering.from_pretrained(
         model_args.model_name_or_path,
         from_tf=bool(".ckpt" in model_args.model_name_or_path),
         config=config,
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-        quantization_config=BitsAndBytesConfig(load_in_8bit=True),
-        torch_dtype=torch.float32
+        use_auth_token=True if model_args.use_auth_token else None
     )
-    model = prepare_model_for_int8_training(model)
     peft_config = LoraConfig(
         r=8,
         lora_alpha=16,
@@ -353,7 +348,6 @@ def main():
         modules_to_save=['qa_outputs']
     )
     model = get_peft_model(model, peft_config)
-    print(model)
     model.print_trainable_parameters()
 
     # Tokenizer check: this script requires a fast tokenizer.
