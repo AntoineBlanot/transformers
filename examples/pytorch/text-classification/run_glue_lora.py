@@ -28,7 +28,7 @@ import evaluate
 import numpy as np
 from datasets import load_dataset
 from trainer_classif import TextClassificationTrainer
-from peft import LoraConfig, get_peft_model
+from peft import LoraConfig, get_peft_model, PeftConfig, PeftModel
 
 import transformers
 from transformers import (
@@ -356,14 +356,14 @@ def main():
     #
     # In distributed training, the .from_pretrained methods guarantee that only one local process can concurrently
     # download model & vocab.
-    config = AutoConfig.from_pretrained(
-        model_args.config_name if model_args.config_name else model_args.model_name_or_path,
-        num_labels=num_labels,
-        finetuning_task=data_args.task_name,
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-    )
+    # config = AutoConfig.from_pretrained(
+    #     model_args.config_name if model_args.config_name else model_args.model_name_or_path,
+    #     num_labels=num_labels,
+    #     finetuning_task=data_args.task_name,
+    #     cache_dir=model_args.cache_dir,
+    #     revision=model_args.model_revision,
+    #     use_auth_token=True if model_args.use_auth_token else None,
+    # )
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
@@ -371,23 +371,34 @@ def main():
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
-    model = AutoModelForSequenceClassification.from_pretrained(
-        model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        config=config,
+    # model = AutoModelForSequenceClassification.from_pretrained(
+    #     model_args.model_name_or_path,
+    #     from_tf=bool(".ckpt" in model_args.model_name_or_path),
+    #     config=config,
+    #     cache_dir=model_args.cache_dir,
+    #     revision=model_args.model_revision,
+    #     use_auth_token=True if model_args.use_auth_token else None,
+    #     ignore_mismatched_sizes=model_args.ignore_mismatched_sizes,
+    # )
+    # peft_config = LoraConfig(
+    #     r=8,
+    #     lora_alpha=16,
+    #     target_modules=['query', 'value'],
+    #     lora_dropout=0.05,
+    #     modules_to_save=['classifier']
+    # )
+    # model = get_peft_model(model, peft_config)
+    peft_config = PeftConfig.from_pretrained(model_args.model_name_or_path)
+    model = AutoModelForSequenceClassification.from_pretrained(peft_config.base_model_name_or_path, num_labels=3)
+    config = AutoConfig.from_pretrained(
+        model_args.config_name if model_args.config_name else peft_config.base_model_name_or_path,
+        num_labels=num_labels,
+        finetuning_task=data_args.task_name,
         cache_dir=model_args.cache_dir,
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
-        ignore_mismatched_sizes=model_args.ignore_mismatched_sizes,
     )
-    peft_config = LoraConfig(
-        r=8,
-        lora_alpha=16,
-        target_modules=['query', 'value'],
-        lora_dropout=0.05,
-        modules_to_save=['classifier']
-    )
-    model = get_peft_model(model, peft_config)
+    model = PeftModel.from_pretrained(model=model, model_id=model_args.model_name_or_path, adapter_name='extraction')
     model.print_trainable_parameters()
 
     # Preprocessing the raw_datasets

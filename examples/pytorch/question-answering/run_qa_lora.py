@@ -29,7 +29,7 @@ import evaluate
 from datasets import load_dataset
 from trainer_qa import QuestionAnsweringTrainer
 from utils_qa import postprocess_qa_predictions
-from peft import LoraConfig, get_peft_model
+from peft import LoraConfig, get_peft_model, PeftConfig, PeftModel
 
 import transformers
 from transformers import (
@@ -319,12 +319,12 @@ def main():
     # Distributed training:
     # The .from_pretrained methods guarantee that only one local process can concurrently
     # download model & vocab.
-    config = AutoConfig.from_pretrained(
-        model_args.config_name if model_args.config_name else model_args.model_name_or_path,
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-    )
+    # config = AutoConfig.from_pretrained(
+    #     model_args.config_name if model_args.config_name else model_args.model_name_or_path,
+    #     cache_dir=model_args.cache_dir,
+    #     revision=model_args.model_revision,
+    #     use_auth_token=True if model_args.use_auth_token else None,
+    # )
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
         cache_dir=model_args.cache_dir,
@@ -332,22 +332,25 @@ def main():
         revision=model_args.model_revision,
         use_auth_token=True if model_args.use_auth_token else None,
     )
-    model = AutoModelForQuestionAnswering.from_pretrained(
-        model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        config=config,
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None
-    )
-    peft_config = LoraConfig(
-        r=8,
-        lora_alpha=16,
-        target_modules=['query', 'value'],
-        lora_dropout=0.05,
-        modules_to_save=['qa_outputs']
-    )
-    model = get_peft_model(model, peft_config)
+    # model = AutoModelForQuestionAnswering.from_pretrained(
+    #     model_args.model_name_or_path,
+    #     from_tf=bool(".ckpt" in model_args.model_name_or_path),
+    #     config=config,
+    #     cache_dir=model_args.cache_dir,
+    #     revision=model_args.model_revision,
+    #     use_auth_token=True if model_args.use_auth_token else None
+    # )
+    # peft_config = LoraConfig(
+    #     r=8,
+    #     lora_alpha=16,
+    #     target_modules=['query', 'value'],
+    #     lora_dropout=0.05,
+    #     modules_to_save=['qa_outputs']
+    # )
+    # model = get_peft_model(model, peft_config)
+    peft_config = PeftConfig.from_pretrained(model_args.model_name_or_path)
+    model = AutoModelForQuestionAnswering.from_pretrained(peft_config.base_model_name_or_path)
+    model = PeftModel.from_pretrained(model=model, model_id=model_args.model_name_or_path, adapter_name='extraction')
     model.print_trainable_parameters()
 
     # Tokenizer check: this script requires a fast tokenizer.
